@@ -4,7 +4,7 @@ Using this code, you can retrieve subdomains
 
 """
 
-from __future__ import print_function
+
 import requests
 import re
 import sys
@@ -53,8 +53,12 @@ class DNSDumpsterAPI(object):
                         'country': country,
                         'header': header}
                 res.append(data)
-            except:
-                pass
+            except (IndexError, AttributeError, TypeError) as e:
+                sys.stderr.write(f'[error] Error parsing DNSDumpster results: {e}. Skipping row.\n')
+                sys.stderr.flush()
+            except Exception as e: # Catch any other unexpected errors
+                sys.stderr.write(f'[error] An unexpected error occurred in retrieve_results: {e}. Skipping row.\n')
+                sys.stderr.flush()
         return res
 
     def retrieve_txt_record(self, table):
@@ -79,8 +83,7 @@ class DNSDumpsterAPI(object):
 
         if req.status_code != 200:
             print(
-                "Unexpected status code from {url}: {code}".format(
-                    url=dnsdumpster_url, code=req.status_code),
+                f"Unexpected status code from {dnsdumpster_url}: {req.status_code}",
                 file=sys.stderr,
             )
             return []
@@ -102,9 +105,11 @@ class DNSDumpsterAPI(object):
 
         # Network mapping image
         try:
-            tmp_url = 'https://dnsdumpster.com/static/map/{}.png'.format(domain)
+            tmp_url = f'https://dnsdumpster.com/static/map/{domain}.png'
             image_data = base64.b64encode(self.session.get(tmp_url).content)
-        except:
+        except requests.exceptions.RequestException as e:
+            sys.stderr.write(f'[error] Failed to retrieve network map image for {domain}: {e}\n')
+            sys.stderr.flush()
             image_data = None
         finally:
             res['image_data'] = image_data
@@ -115,8 +120,17 @@ class DNSDumpsterAPI(object):
             pattern = r'https://dnsdumpster.com/static/xls/' + domain + '-[0-9]{12}\.xlsx'
             xls_url = re.findall(pattern, req.content.decode('utf-8'))[0]
             xls_data = base64.b64encode(self.session.get(xls_url).content)
-        except Exception as err:
-            print(err)
+        except IndexError: # re.findall might return empty list
+            sys.stderr.write(f'[error] No XLS URL found for {domain}.\n')
+            sys.stderr.flush()
+            xls_data = None
+        except requests.exceptions.RequestException as e:
+            sys.stderr.write(f'[error] Failed to retrieve XLS data for {domain}: {e}\n')
+            sys.stderr.flush()
+            xls_data = None
+        except Exception as e: # Catch any other unexpected errors
+            sys.stderr.write(f'[error] An unexpected error occurred while getting XLS data for {domain}: {e}\n')
+            sys.stderr.flush()
             xls_data = None
         finally:
             res['xls_data'] = xls_data

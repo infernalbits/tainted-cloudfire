@@ -21,25 +21,34 @@ class Updater:
             Updater.download(d[0], d[1])
 
         Updater.last_updated(Updater.today())
-        print('')
 
     def uptodate():
-        last_updated = open('lists/last_updated', 'r').read()
-        if last_updated == Updater.today():
-            return True
+        try:
+            last_updated = open('lists/last_updated', 'r').read()
+            if last_updated == Updater.today():
+                return True
+        except FileNotFoundError:
+            sys.stdout.write('[info] lists/last_updated not found, forcing update.\n')
+            sys.stdout.flush()
         return False
 
     def last_updated(date):
-        file = open('lists/last_updated', 'w')
-        file.write(date)
-        file.close()
+        with open('lists/last_updated', 'w') as file:
+            file.write(date)
 
     def today():
         return time.strftime("%Y-%m-%d")
 
     def download(url, file):
-        print('[download] %s' % url)
+        sys.stdout.write('[download] %s\n' % url)
+        sys.stdout.flush()
         try:
             urllib.request.urlretrieve(url, file)
-        except (OSError, HTTPError, http.client.BadStatusLine):
-            pass
+            sys.stdout.write('[info] Downloaded %s to %s\n' % (url, file))
+            sys.stdout.flush()
+        except HTTPError as e:
+            sys.stderr.write('[error] Failed to download %s: HTTP Error %s - %s\n' % (url, e.code, e.reason))
+            sys.stderr.flush()
+        except (OSError, http.client.BadStatusLine) as e:
+            sys.stderr.write('[error] Failed to download %s: %s\n' % (url, e))
+            sys.stderr.flush()
